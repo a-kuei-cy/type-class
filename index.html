@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>中文打字練習程式 - 最終版</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f4f4f4;
+            color: #333;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #4A90E2;
+        }
+        input, select, textarea, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background: #4A90E2;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #357ABD;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        #textToType {
+            font-size: 18px;
+            line-height: 1.5;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            padding: 20px;
+            min-height: 200px;
+            background: #FAFBFC;
+            user-select: none; /* 防止選取文字複製 */
+        }
+        #inputArea {
+            width: 100%;
+            height: 150px;
+            resize: vertical;
+            font-size: 18px;
+        }
+        .timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: red;
+            text-align: center;
+            margin: 20px 0;
+            padding: 10px;
+            background: rgba(255, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+        .rules {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #4A90E2;
+            color: white;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        #encouragement {
+            font-size: 18px;
+            text-align: center;
+            padding: 15px;
+            background: #e8f5e8;
+            border-radius: 5px;
+            color: #51CF66;
+        }
+        .debug {
+            display: none;
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .leaderboard-section {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .leaderboard-section h3 {
+            color: #4A90E2;
+            margin-top: 0;
+        }
+        .warning {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <!-- 設定頁面 -->
+    <div id="setupPage" class="page active">
+        <div class="container">
+            <h1>中文打字練習 - 設定</h1>
+            
+            <div>
+                <label>選擇內容：</label><br>
+                <input type="file" id="fileUpload" accept=".txt" style="display: none;">
+                <button onclick="document.getElementById('fileUpload').click()">上傳 .txt 檔案</button>
+                <button onclick="useBuiltin()">使用內建文章</button>
+                <div id="articleInfo"></div>
+            </div>
+            
+            <div>
+                <label>練習時間：</label><br>
+                <select id="timeSelect">
+                    <option value="30">30秒</option>
+                    <option value="60" selected>1分鐘</option>
+                    <option value="120">2分鐘</option>
+                    <option value="180">3分鐘</option>
+                    <option value="300">5分鐘</option>
+                </select>
+            </div>
+            
+            <div>
+                <label>班級：</label><input type="text" id="className" placeholder="例如：五年級一班"><br>
+                <label>姓名：</label><input type="text" id="studentName" placeholder="例如：小明">
+            </div>
+            
+            <button id="startBtn" onclick="startTest()">開始測驗</button>
+            <div id="debugInfo" class="debug"></div>
+        </div>
+    </div>
+    
+    <!-- 測驗頁面 -->
+    <div id="testPage" class="page">
+        <div class="container">
+            <h1>中文打字練習 - 測驗中</h1>
+            
+            <div class="rules">
+                <h3>打字規定：</h3>
+                <ul>
+                    <li>請依序輸入下方文字內容。</li>
+                    <li>換行時請按 Enter 鍵。</li>
+                    <li><strong>禁止使用複製貼上！</strong> 系統會偵測並警告。</li>
+                    <li>時間到後自動結束。</li>
+                </ul>
+            </div>
+            
+            <div class="timer" id="timer">時間：01:00</div>
+            
+            <div id="textToType" oncopy="preventCopy(event)" onselectstart="return false;">請選擇內容後開始。</div>
+            
+            <textarea id="inputArea" placeholder="請在此輸入文字..." oninput="checkTyping()" onpaste="preventPaste(event)" oncontextmenu="return false;" onkeydown="preventShortcuts(event)"></textarea>
+            
+            <div id="pasteWarning" class="warning" style="display: none;">偵測到貼上行為！請手動打字，否則成績無效。</div>
+            
+            <button onclick="endTest()">結束測驗</button>
+        </div>
+    </div>
+    
+    <!-- 結果頁面 -->
+    <div id="resultPage" class="page">
+        <div class="container">
+            <h1>測驗結果</h1>
+            
+            <table>
+                <tr><th>項目</th><th>結果</th></tr>
+                <tr><td>總字數</td><td id="totalChars">-</td></tr>
+                <tr><td>平均速度 (WPM)</td><td id="wpm">-</td></tr>
+                <tr><td>總錯字數</td><td id="errorCount">-</td></tr>
+                <tr><td>錯誤率 (%)</td><td id="errorRate">-</td></tr>
+                <tr><td>評價</td><td id="evaluation">-</td></tr>
+            </table>
+            
+            <p id="encouragement"></p>
+            
+            <p>班級： <span id="resultClass">-</span> | 姓名： <span id="resultName">-</span></p>
+            
+            <div id="cheatWarning" class="warning" style="display: none;">偵測到作弊行為（複製貼上），成績不計入排行榜！</div>
+            
+            <div class="leaderboard-section">
+                <h3>排行榜 (前5名)</h3>
+                <table>
+                    <tr><th>排名</th><th>姓名</th><th>班級</th><th>WPM</th><th>錯誤率</th></tr>
+                    <tr id="rankRow1"><td>1</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr id="rankRow2"><td>2</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr id="rankRow3"><td>3</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr id="rankRow4"><td>4</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr id="rankRow5"><td>5</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                </table>
+            </div>
+            
+            <button onclick="backToSetup()">返回設定</button>
+        </div>
+    </div>
+
+    <script>
+        console.log('程式載入開始');
+        let testText = '';
+        let startTime;
+        let timeLeft;
+        let timerInterval;
+        let originalText = '';
+        let className = '';
+        let studentName = '';
+        let isTestRunning = false;
+        let pasteDetected = false;
+
+        // 內建文章
+        const builtinArticles = [
+            {
+                text: "小明每天早上起床後，就開始準備上學。他穿好衣服，洗好臉，然後吃早餐。早餐是媽媽做的熱騰騰的饅頭和豆漿。吃完早餐，小明背起書包，走出家門。路上，他遇見了鄰居的小狗，小狗搖著尾巴跟著他走了一段路。到了學校，小明和同學們一起上課。大家都很快樂。",
+                wordCount: 128,
+                source: "模擬台灣國小國語課本《上學途中》範例"
+            }
+        ];
+
+        function logDebug(msg) {
+            console.log(msg);
+            const debugDiv = document.getElementById('debugInfo');
+            if (debugDiv) {
+                debugDiv.innerHTML += `<p>${new Date().toLocaleTimeString()}: ${msg}</p>`;
+                debugDiv.style.display = 'block';
+                debugDiv.scrollTop = debugDiv.scrollHeight;
+            }
+        }
+
+        function useBuiltin() {
+            console.log('使用內建文章');
+            const randomArticle = builtinArticles[0];
+            testText = randomArticle.text;
+            document.getElementById('articleInfo').innerHTML = `<p>${randomArticle.source} (字數：${randomArticle.wordCount})</p>`;
+            logDebug('內建文章載入成功');
+            updateStartButton();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM載入完成');
+            const fileUpload = document.getElementById('fileUpload');
+            if (fileUpload) {
+                fileUpload.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            testText = e.target.result.trim();
+                            if (testText.length === 0) {
+                                alert('檔案內容為空');
+                                return;
+                            }
+                            const wordCount = testText.length;
+                            document.getElementById('articleInfo').innerHTML = `<p>上傳檔案 (字數：${wordCount})</p>`;
+                            logDebug('檔案上傳成功');
+                            updateStartButton();
+                        };
+                        reader.readAsText(file, 'UTF-8');
+                    }
+                });
+            }
+            updateStartButton();
+            loadLeaderboard();
+            logDebug('初始化完成');
+        });
+
+        function updateStartButton() {
+            const btn = document.getElementById('startBtn');
+            if (btn && testText) {
+                btn.disabled = false;
+                btn.innerHTML = '開始測驗';
+            } else if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '請先選擇內容';
+            }
+        }
+
+        function startTest() {
+            if (!testText) {
+                alert('請選擇內容！');
+                return;
+            }
+            console.log('開始測驗');
+            className = document.getElementById('className').value.trim() || '-';
+            studentName = document.getElementById('studentName').value.trim() || '-';
+            originalText = testText.replace(/\s/g, '').replace(/\n/g, '');
+            document.getElementById('textToType').innerHTML = testText.replace(/\n/g, '<br>');
+            document.getElementById('inputArea').value = '';
+            timeLeft = parseInt(document.getElementById('timeSelect').value) || 60;
+            startTime = Date.now();
+            isTestRunning = true;
+            pasteDetected = false;
+            document.getElementById('pasteWarning').style.display = 'none';
+            showPage('testPage');
+            document.getElementById('inputArea').focus();
+            function updateTimerLocal() {
+                if (!isTestRunning) {
+                    console.log('計時器停止');
+                    return;
+                }
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                document.getElementById('timer').innerHTML = `時間：${minutes}:${seconds.toString().padStart(2, '0')}`;
+                console.log(`計時器更新: ${timeLeft}秒剩餘`);
+                logDebug(`計時: ${timeLeft}秒`);
+                if (timeLeft <= 0) {
+                    endTest();
+                }
+            }
+            timerInterval = setInterval(updateTimerLocal, 1000);
+            logDebug('計時器啟動');
+        }
+
+        function checkTyping() {
+            if (!isTestRunning) return;
+            console.log('輸入偵測');
+        }
+
+        // 防止貼上
+        function preventPaste(event) {
+            event.preventDefault();
+            pasteDetected = true;
+            document.getElementById('pasteWarning').style.display = 'block';
+            alert('禁止貼上！請手動打字。');
+            logDebug('偵測到貼上嘗試');
+            return false;
+        }
+
+        // 防止複製文章文字
+        function preventCopy(event) {
+            event.preventDefault();
+            alert('禁止複製文章內容！請手動打字。');
+            logDebug('偵測到複製文章嘗試');
+            return false;
+        }
+
+        // 防止快捷鍵
+        function preventShortcuts(event) {
+            const key = event.keyCode || event.which;
+            const ctrl = event.ctrlKey || event.metaKey;
+            if (ctrl && (key === 86 || key === 67 || key === 88)) { // V, C, X
+                event.preventDefault();
+                if (key === 86) { // V for paste
+                    pasteDetected = true;
+                    document.getElementById('pasteWarning').style.display = 'block';
+                    alert('禁止使用快捷鍵貼上！請手動打字。');
+                    logDebug('偵測到快捷鍵貼上嘗試');
+                }
+                return false;
+            }
+        }
+
+        function endTest() {
+            console.log('結束測驗');
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            isTestRunning = false;
+            const input = document.getElementById('inputArea').value.replace(/\s/g, '').replace(/\n/g, '');
+            const totalChars = input.length;
+            const elapsedMinutes = (Date.now() - startTime) / 60000 || 1;
+            const wpm = Math.round(totalChars / elapsedMinutes);
+            const errors = levenshteinDistance(originalText, input);
+            const errorRate = totalChars > 0 ? ((errors / totalChars) * 100).toFixed(2) : '0.00';
+            
+            let evaluation = '不合格';
+            if (wpm >= 80 && parseFloat(errorRate) < 10 && !pasteDetected) evaluation = '專業級 (C3)';
+            else if (wpm >= 30 && parseFloat(errorRate) < 10 && !pasteDetected) evaluation = '進階級 (C2)';
+            else if (wpm >= 15 && parseFloat(errorRate) < 10 && !pasteDetected) evaluation = '實用級 (C1)';
+            else if (pasteDetected) evaluation = '作弊偵測 - 無效';
+            
+            let encouragement = pasteDetected ? '請誠實練習，手動打字才能進步！' :
+                               parseFloat(errorRate) < 5 ? '太棒了！你打字超準的！繼續保持！' :
+                               wpm > 50 ? '速度不錯！多練習準確度吧！' : '加油！多練習就會進步了！';
+            
+            document.getElementById('totalChars').innerHTML = totalChars;
+            document.getElementById('wpm').innerHTML = wpm;
+            document.getElementById('errorCount').innerHTML = errors;
+            document.getElementById('errorRate').innerHTML = errorRate + '%';
+            document.getElementById('evaluation').innerHTML = evaluation;
+            document.getElementById('encouragement').innerHTML = encouragement;
+            document.getElementById('resultClass').innerHTML = className;
+            document.getElementById('resultName').innerHTML = studentName;
+            
+            if (pasteDetected) {
+                document.getElementById('cheatWarning').style.display = 'block';
+            } else if (studentName !== '-') {
+                updateLeaderboard(wpm, parseFloat(errorRate), studentName, className);
+            }
+            
+            showPage('resultPage');
+            if (timeLeft <= 0) alert('時間到');
+            logDebug(`測驗結束: WPM=${wpm}, 錯誤率=${errorRate}%, 作弊=${pasteDetected}`);
+        }
+
+        // 排行榜功能
+        function updateLeaderboard(wpm, errorRate, name, cls) {
+            try {
+                let leaderboard = JSON.parse(localStorage.getItem('typingLeaderboard') || '[]');
+                leaderboard.push({ wpm, errorRate, name, cls, date: new Date().toISOString() });
+                leaderboard.sort((a, b) => b.wpm - a.wpm || a.errorRate - b.errorRate);
+                leaderboard = leaderboard.slice(0, 5);
+                localStorage.setItem('typingLeaderboard', JSON.stringify(leaderboard));
+                logDebug('排行榜更新成功');
+                displayLeaderboard();
+            } catch (e) {
+                logDebug('排行榜儲存錯誤: ' + e.message);
+                alert('無法儲存排行榜，請檢查瀏覽器隱私設定。');
+            }
+        }
+
+        function loadLeaderboard() {
+            try {
+                let leaderboard = JSON.parse(localStorage.getItem('typingLeaderboard') || '[]');
+                displayLeaderboard(leaderboard);
+            } catch (e) {
+                logDebug('載入排行榜錯誤: ' + e.message);
+            }
+        }
+
+        function displayLeaderboard(leaderboard = []) {
+            for (let i = 0; i < 5; i++) {
+                const row = document.getElementById(`rankRow${i + 1}`);
+                if (i < leaderboard.length) {
+                    const entry = leaderboard[i];
+                    row.cells[0].innerHTML = i + 1;
+                    row.cells[1].innerHTML = entry.name;
+                    row.cells[2].innerHTML = entry.cls;
+                    row.cells[3].innerHTML = entry.wpm;
+                    row.cells[4].innerHTML = entry.errorRate.toFixed(2) + '%';
+                } else {
+                    row.cells[0].innerHTML = i + 1;
+                    row.cells[1].innerHTML = '-';
+                    row.cells[2].innerHTML = '-';
+                    row.cells[3].innerHTML = '-';
+                    row.cells[4].innerHTML = '-';
+                }
+            }
+        }
+
+        function levenshteinDistance(a, b) {
+            if (a.length === 0) return b.length;
+            if (b.length === 0) return a.length;
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                        matrix[i][j] = matrix[i - 1][j - 1];
+                    } else {
+                        matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+                    }
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            console.log(`切換頁面: ${pageId}`);
+        }
+
+        function backToSetup() {
+            showPage('setupPage');
+            document.getElementById('fileUpload').value = '';
+            document.getElementById('articleInfo').innerHTML = '';
+            document.getElementById('debugInfo').innerHTML = '';
+            document.getElementById('debugInfo').style.display = 'none';
+            testText = '';
+            if (timerInterval) clearInterval(timerInterval);
+            isTestRunning = false;
+            updateStartButton();
+            logDebug('返回設定頁');
+        }
+
+        console.log('腳本載入完成');
+    </script>
+</body>
+</html>
